@@ -53,8 +53,7 @@ function evaluateGuess(guess, word) {
 
 function endRound(code) {
   const room = rooms[code];
-  if (!room || room.status === "ended" || room.roundEnding) return;
-  room.roundEnding = true;
+  if (!room || room.status === "ended") return;
 
   const word = room.word;
   const hostSolved = room.solved.host;
@@ -165,7 +164,7 @@ io.on("connection", (socket) => {
     const code = socket.data.roomCode;
     const role = socket.data.role;
     const room = rooms[code];
-    if (!room || room.status !== "playing") return;
+    if (!room || room.status !== "playing" || room.roundEnding) return;
     if (room.solved[role] || room.guesses[role].length >= 6) return;
 
     const word = room.word;
@@ -185,15 +184,17 @@ io.on("connection", (socket) => {
 
     const hostDone = room.solved.host || room.guesses.host.length >= 6;
     const guestDone = room.solved.guest || room.guesses.guest.length >= 6;
-    if (hostDone && guestDone) endRound(code);
+    if (hostDone && guestDone) {
+      room.roundEnding = true;
+      endRound(code);
+    }
   });
 
-  // Süre dolunca client buraya haber verir, server iki oyuncuyu da bitirir
   socket.on("time_up", () => {
     const code = socket.data.roomCode;
     const room = rooms[code];
     if (!room || room.roundEnding) return;
-    // İki oyuncuyu da timeout say, anında tur bitir
+    room.roundEnding = true; // hemen kilitle — ikinci time_up gelirse çıkar
     if (!room.solved.host && room.guesses.host.length < 6) room.guesses.host.push("__TIMEOUT__");
     if (!room.solved.guest && room.guesses.guest.length < 6) room.guesses.guest.push("__TIMEOUT__");
     endRound(code);
