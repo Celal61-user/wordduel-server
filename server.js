@@ -204,15 +204,14 @@ io.on("connection", (socket) => {
     if (hostDone && guestDone) endRound(code);
   });
 
-  socket.on("time_up", () => {
+socket.on("time_up", () => {
     const code = socket.data.roomCode;
-    const role = socket.data.role;
     const room = rooms[code];
     if (!room) return;
-    if (!room.solved[role] && room.guesses[role].length < 6) room.guesses[role].push("__TIMEOUT__");
-    const hostDone = room.solved.host || room.guesses.host.length >= 6;
-    const guestDone = room.solved.guest || room.guesses.guest.length >= 6;
-    if (hostDone && guestDone) endRound(code);
+    // İKİ OYUNCUYU DA timeout say
+    if (!room.solved.host && room.guesses.host.length < 6) room.guesses.host.push("__TIMEOUT__");
+    if (!room.solved.guest && room.guesses.guest.length < 6) room.guesses.guest.push("__TIMEOUT__");
+    endRound(code);
   });
 
   socket.on("disconnect", () => {
