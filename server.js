@@ -51,26 +51,10 @@ function evaluateGuess(guess, word) {
   return result;
 }
 
-function forceEndRound(code) {
-  const room = rooms[code];
-  if (!room || room.roundEnding || room.status !== "playing") return;
-  if (!room.solved.host && room.guesses.host.length < 6) room.guesses.host.push("__TIMEOUT__");
-  if (!room.solved.guest && room.guesses.guest.length < 6) room.guesses.guest.push("__TIMEOUT__");
-  endRound(code);
-}
-
-function startRoundTimer(code) {
-  const room = rooms[code];
-  if (!room) return;
-  if (room.roundTimer) clearTimeout(room.roundTimer);
-  room.roundTimer = setTimeout(() => forceEndRound(code), 10000); // 10 saniye
-}
-
 function endRound(code) {
   const room = rooms[code];
   if (!room || room.status === "ended" || room.roundEnding) return;
   room.roundEnding = true;
-  if (room.roundTimer) clearTimeout(room.roundTimer);
 
   const word = room.word;
   const hostSolved = room.solved.host;
@@ -99,7 +83,8 @@ function endRound(code) {
     hostGuesses, guestGuesses,
     hostPts, guestPts,
     scores: room.scores,
-    isLastRound, round: room.round,
+    isLastRound,
+    round: room.round,
   });
 
   if (isLastRound) {
@@ -128,7 +113,6 @@ function endRound(code) {
         wordLength: room.word.length,
         scores: room.scores
       });
-      startRoundTimer(code);
     }, 4000);
   }
 }
@@ -145,7 +129,7 @@ io.on("connection", (socket) => {
       scores: { host: 0, guest: 0 },
       guesses: { host: [], guest: [] },
       solved: { host: false, guest: false },
-      roundEnding: false, roundTimer: null,
+      roundEnding: false,
       status: "waiting",
     };
     socket.join(code);
@@ -174,7 +158,6 @@ io.on("connection", (socket) => {
       round: room.round, wordLength: room.word.length, scores: room.scores,
     });
 
-    startRoundTimer(code);
     console.log(`${playerName} odaya katıldı: ${code}`);
   });
 
@@ -188,7 +171,8 @@ io.on("connection", (socket) => {
     const word = room.word;
     const upperGuess = guess.toUpperCase().trim();
     if (upperGuess.length !== word.length) {
-      socket.emit("guess_error", { msg: `Kelime ${word.length} harf olmalı!` }); return;
+      socket.emit("guess_error", { msg: `Kelime ${word.length} harf olmalı!` });
+      return;
     }
 
     room.guesses[role].push(upperGuess);
@@ -204,11 +188,12 @@ io.on("connection", (socket) => {
     if (hostDone && guestDone) endRound(code);
   });
 
-socket.on("time_up", () => {
+  // Süre dolunca client buraya haber verir, server iki oyuncuyu da bitirir
+  socket.on("time_up", () => {
     const code = socket.data.roomCode;
     const room = rooms[code];
-    if (!room) return;
-    // İKİ OYUNCUYU DA timeout say
+    if (!room || room.roundEnding) return;
+    // İki oyuncuyu da timeout say, anında tur bitir
     if (!room.solved.host && room.guesses.host.length < 6) room.guesses.host.push("__TIMEOUT__");
     if (!room.solved.guest && room.guesses.guest.length < 6) room.guesses.guest.push("__TIMEOUT__");
     endRound(code);
@@ -218,7 +203,6 @@ socket.on("time_up", () => {
     const code = socket.data.roomCode;
     if (!code || !rooms[code]) return;
     const room = rooms[code];
-    if (room.roundTimer) clearTimeout(room.roundTimer);
     if (room.status === "waiting") delete rooms[code];
     else if (room.status === "playing") {
       io.to(code).emit("opponent_left");
