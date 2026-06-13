@@ -99,14 +99,17 @@ function endRound(code) {
       delete rooms[code];
     }, 4000);
   } else {
+    // round++ burada yapılıyor — sadece bir kez çalışmalı
     room.round++;
     room.word = pickWord();
     room.guesses = { host: [], guest: [] };
     room.solved = { host: false, guest: false };
-    room.roundEnding = false;
+    // roundEnding burada FALSE yapılmıyor — sonraki time_up gelirse tekrar girmesin
 
     setTimeout(() => {
       if (!rooms[code]) return;
+      // Yeni tur başlarken roundEnding sıfırla
+      room.roundEnding = false;
       io.to(code).emit("next_round", {
         round: room.round,
         wordLength: room.word.length,
@@ -193,8 +196,8 @@ io.on("connection", (socket) => {
   socket.on("time_up", () => {
     const code = socket.data.roomCode;
     const room = rooms[code];
-    if (!room || room.roundEnding) return;
-    room.roundEnding = true; // hemen kilitle — ikinci time_up gelirse çıkar
+    if (!room || room.roundEnding) return; // zaten bitiyorsa çık
+    room.roundEnding = true; // kilitle — ikinci time_up gelirse çıkar
     if (!room.solved.host && room.guesses.host.length < 6) room.guesses.host.push("__TIMEOUT__");
     if (!room.solved.guest && room.guesses.guest.length < 6) room.guesses.guest.push("__TIMEOUT__");
     endRound(code);
